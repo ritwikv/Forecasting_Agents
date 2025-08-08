@@ -4,7 +4,7 @@ Model configuration and management for Phi-3 integration
 import os
 import psutil
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, Optional, List
 import logging
 
 from config import MODEL_CONFIG, SYSTEM_CONFIG
@@ -170,4 +170,3 @@ class ModelConfig:
         ])
         
         return tips
-
