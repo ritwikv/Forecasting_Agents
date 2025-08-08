@@ -416,68 +416,216 @@ def main():
         
         if st.button("💡 Get Explanation") and question:
             with st.spinner("Generating explanation..."):
-                # Simple explanation logic for testing
-                if "higher" in question.lower():
-                    explanation = """
-                    The forecast shows higher values in certain months due to:
-                    1. **Seasonal Patterns**: Historical data shows increased call volumes during specific periods
-                    2. **Trend Analysis**: The underlying trend suggests growth over time
-                    3. **Driver Correlation**: The driver forecast indicates higher activity in those periods
-                    """
+                # Get data for analysis
+                data = st.session_state['data']
+                forecast = st.session_state['agent1_forecast']
                 
-                elif "reliable" in question.lower():
-                    data_points = len(st.session_state['data'])
+                # Calculate key statistics
+                historical_avg = data['ACD Call Volume Actuals'].mean()
+                historical_std = data['ACD Call Volume Actuals'].std()
+                forecast_avg = forecast.mean()
+                latest_actual = data['ACD Call Volume Actuals'].iloc[-1]
+                trend_slope = np.polyfit(range(len(data)), data['ACD Call Volume Actuals'], 1)[0]
+                
+                # Analyze seasonal patterns
+                if len(data) >= 12:
+                    monthly_avg = data.groupby(data.index % 12)['ACD Call Volume Actuals'].mean()
+                    peak_month = monthly_avg.idxmax() + 1
+                    low_month = monthly_avg.idxmin() + 1
+                    seasonal_variation = (monthly_avg.max() - monthly_avg.min()) / historical_avg * 100
+                else:
+                    peak_month = "N/A"
+                    low_month = "N/A" 
+                    seasonal_variation = 0
+                
+                # Generate intelligent explanations based on actual data
+                if any(word in question.lower() for word in ["higher", "increase", "peak", "maximum"]):
+                    max_forecast_idx = np.argmax(forecast)
+                    max_forecast_value = forecast[max_forecast_idx]
                     explanation = f"""
-                    **Forecast Reliability Assessment:**
-                    - **Data Quality**: Based on {data_points} historical data points
-                    - **Method**: Simple trend and seasonal analysis
-                    - **Confidence**: Moderate (this is a simplified demo version)
-                    - **Recommendation**: Use for directional planning, validate with business context
+                    **📈 Why the Forecast Shows Higher Values:**
+                    
+                    **Specific Analysis:**
+                    - **Peak Forecast**: Period {max_forecast_idx + 1} shows the highest value of {max_forecast_value:.0f}
+                    - **vs Historical Average**: This is {((max_forecast_value - historical_avg) / historical_avg * 100):.1f}% above the historical average of {historical_avg:.0f}
+                    - **Trend Impact**: The data shows a {"positive" if trend_slope > 0 else "negative"} trend of {trend_slope:.1f} units per period
+                    
+                    **Key Drivers:**
+                    1. **Historical Trend**: {"Growing" if trend_slope > 0 else "Declining"} pattern in your data
+                    2. **Seasonal Patterns**: {f"Peak typically occurs in month {peak_month}" if peak_month != "N/A" else "Limited seasonal data available"}
+                    3. **Recent Performance**: Latest actual value was {latest_actual:.0f}
+                    4. **Driver Correlation**: Driver forecast shows {data['Driver_Forecast'].iloc[-6:].mean():.0f} average in recent periods
                     """
                 
-                elif "factors" in question.lower():
-                    explanation = """
-                    **Key Factors Influencing the Forecast:**
-                    1. **Historical Trend**: Long-term growth pattern in call volumes
-                    2. **Seasonal Patterns**: Monthly variations based on historical data
-                    3. **Driver Forecast**: Correlation with provided driver variables
-                    4. **Recent Performance**: Latest actual values influence near-term predictions
+                elif any(word in question.lower() for word in ["lower", "decrease", "minimum", "drop"]):
+                    min_forecast_idx = np.argmin(forecast)
+                    min_forecast_value = forecast[min_forecast_idx]
+                    explanation = f"""
+                    **📉 Why the Forecast Shows Lower Values:**
+                    
+                    **Specific Analysis:**
+                    - **Lowest Forecast**: Period {min_forecast_idx + 1} shows the lowest value of {min_forecast_value:.0f}
+                    - **vs Historical Average**: This is {((historical_avg - min_forecast_value) / historical_avg * 100):.1f}% below the historical average of {historical_avg:.0f}
+                    - **Trend Impact**: The underlying trend is {trend_slope:.1f} units per period
+                    
+                    **Possible Reasons:**
+                    1. **Seasonal Effect**: {f"Low period typically occurs in month {low_month}" if low_month != "N/A" else "Natural variation in the data"}
+                    2. **Mean Reversion**: Forecast adjusts after recent high values
+                    3. **Driver Influence**: Driver forecast shows corresponding lower values
+                    4. **Statistical Smoothing**: Algorithm balances extreme values
                     """
                 
-                elif "agent 2" in question.lower() or "differ" in question.lower():
+                elif any(word in question.lower() for word in ["reliable", "accurate", "confidence", "trust"]):
+                    cv = historical_std / historical_avg * 100  # Coefficient of variation
+                    explanation = f"""
+                    **🎯 Forecast Reliability Assessment:**
+                    
+                    **Data Quality Metrics:**
+                    - **Historical Data**: {len(data)} data points spanning {len(data)/12:.1f} years
+                    - **Data Stability**: Coefficient of variation is {cv:.1f}% ({"Low" if cv < 15 else "Moderate" if cv < 30 else "High"} volatility)
+                    - **Trend Consistency**: {"Strong" if abs(trend_slope) > historical_std/10 else "Weak"} trend pattern detected
+                    
+                    **Confidence Indicators:**
+                    - **✅ Strengths**: {len(data)} historical observations, clear trend pattern
+                    - **⚠️ Limitations**: Simplified algorithm, no external factors considered
+                    - **📊 Accuracy**: Expected error range ±{historical_std:.0f} units ({historical_std/historical_avg*100:.1f}%)
+                    
+                    **Recommendation**: Use for directional planning. Validate against business knowledge and external factors.
+                    """
+                
+                elif any(word in question.lower() for word in ["agent 2", "tweak", "differ", "change", "adjust"]):
                     if 'agent2_forecast' in st.session_state:
+                        agent2_forecast = st.session_state['agent2_forecast']
+                        total_change = np.sum(agent2_forecast - forecast)
+                        avg_change_pct = np.mean((agent2_forecast - forecast) / forecast * 100)
+                        max_change_idx = np.argmax(np.abs(agent2_forecast - forecast))
+                        max_change_value = agent2_forecast[max_change_idx] - forecast[max_change_idx]
+                        
                         explanation = f"""
-                        **Agent 2 vs Agent 1 Differences:**
-                        - **Agent 1**: Pure statistical forecast based on historical patterns
-                        - **Agent 2**: Incorporates business logic and human insights
-                        - **Adjustment**: {st.session_state.get('tweak_explanation', 'Business-driven modification')}
-                        - **Purpose**: Align statistical forecast with business expectations
+                        **🔧 Agent 2 vs Agent 1 Analysis:**
+                        
+                        **Quantitative Differences:**
+                        - **Total Adjustment**: {total_change:.0f} units across all periods
+                        - **Average Change**: {avg_change_pct:.1f}% per period
+                        - **Largest Change**: Period {max_change_idx + 1} changed by {max_change_value:.0f} units
+                        
+                        **Business Logic Applied:**
+                        - **Agent 1**: Pure statistical forecast (Avg: {forecast.mean():.0f})
+                        - **Agent 2**: Business-adjusted forecast (Avg: {agent2_forecast.mean():.0f})
+                        - **Adjustment Type**: {st.session_state.get('tweak_explanation', 'Business-driven modification')}
+                        
+                        **Impact Assessment:**
+                        - **Direction**: {"Upward" if total_change > 0 else "Downward"} adjustment overall
+                        - **Magnitude**: {abs(avg_change_pct):.1f}% average change
+                        - **Consistency**: {"Uniform" if np.std((agent2_forecast - forecast) / forecast * 100) < 5 else "Variable"} adjustment pattern
                         """
                     else:
-                        explanation = "Agent 2 forecast not yet generated. Please use the Tweaking section first."
+                        explanation = "❌ **Agent 2 forecast not available.** Please generate a forecast and apply tweaks first in the Tweaking section."
                 
-                elif "methodology" in question.lower():
-                    explanation = """
-                    **Forecasting Methodology:**
-                    1. **Data Analysis**: Examine historical patterns and trends
-                    2. **Statistical Modeling**: Apply trend and seasonal decomposition
-                    3. **Driver Integration**: Incorporate driver forecast when significant
-                    4. **Business Adjustment**: Apply human insights via Agent 2
-                    5. **Validation**: Compare results and assess reasonableness
+                elif any(word in question.lower() for word in ["seasonal", "month", "pattern", "cycle"]):
+                    if seasonal_variation > 0:
+                        explanation = f"""
+                        **📅 Seasonal Pattern Analysis:**
+                        
+                        **Seasonal Statistics:**
+                        - **Seasonal Variation**: {seasonal_variation:.1f}% difference between peak and trough
+                        - **Peak Period**: Month {peak_month} typically shows highest values
+                        - **Low Period**: Month {low_month} typically shows lowest values
+                        - **Pattern Strength**: {"Strong" if seasonal_variation > 20 else "Moderate" if seasonal_variation > 10 else "Weak"} seasonal effect
+                        
+                        **Monthly Averages** (based on historical data):
+                        {chr(10).join([f"- Month {i+1}: {monthly_avg.iloc[i]:.0f}" for i in range(min(12, len(monthly_avg)))])}
+                        
+                        **Forecast Impact:**
+                        - The forecast incorporates these seasonal patterns
+                        - Expect higher values around month {peak_month}
+                        - Plan for lower volumes around month {low_month}
+                        """
+                    else:
+                        explanation = f"""
+                        **📅 Seasonal Analysis:**
+                        
+                        **Limited Seasonal Data:**
+                        - Only {len(data)} data points available
+                        - Need at least 24 months for robust seasonal analysis
+                        - Current forecast uses trend-based approach
+                        
+                        **Recommendation:**
+                        - Collect more historical data for seasonal patterns
+                        - Consider business calendar effects manually
+                        - Monitor for emerging seasonal trends
+                        """
+                
+                elif any(word in question.lower() for word in ["trend", "growth", "direction"]):
+                    monthly_trend = trend_slope
+                    annual_trend = monthly_trend * 12
+                    explanation = f"""
+                    **📈 Trend Analysis:**
+                    
+                    **Trend Statistics:**
+                    - **Monthly Trend**: {monthly_trend:.1f} units per month
+                    - **Annual Trend**: {annual_trend:.0f} units per year ({annual_trend/historical_avg*100:.1f}% annually)
+                    - **Trend Direction**: {"📈 Growing" if monthly_trend > 0 else "📉 Declining" if monthly_trend < 0 else "➡️ Stable"}
+                    
+                    **Historical Context:**
+                    - **Starting Point**: First data point was {data['ACD Call Volume Actuals'].iloc[0]:.0f}
+                    - **Current Level**: Latest actual is {latest_actual:.0f}
+                    - **Total Change**: {latest_actual - data['ACD Call Volume Actuals'].iloc[0]:.0f} units over {len(data)} periods
+                    
+                    **Forecast Implication:**
+                    - The forecast continues this {"growth" if monthly_trend > 0 else "decline" if monthly_trend < 0 else "stable"} pattern
+                    - Expected range: {forecast.min():.0f} to {forecast.max():.0f}
+                    """
+                
+                elif any(word in question.lower() for word in ["driver", "correlation", "relationship"]):
+                    driver_corr = np.corrcoef(data['ACD Call Volume Actuals'], data['Driver_Forecast'])[0,1]
+                    explanation = f"""
+                    **🔗 Driver Relationship Analysis:**
+                    
+                    **Correlation Statistics:**
+                    - **Correlation Coefficient**: {driver_corr:.3f} ({
+                        "Strong positive" if driver_corr > 0.7 else
+                        "Moderate positive" if driver_corr > 0.3 else
+                        "Weak positive" if driver_corr > 0.1 else
+                        "No clear" if abs(driver_corr) <= 0.1 else
+                        "Weak negative" if driver_corr > -0.3 else
+                        "Moderate negative" if driver_corr > -0.7 else
+                        "Strong negative"
+                    } relationship)
+                    
+                    **Driver Statistics:**
+                    - **Driver Average**: {data['Driver_Forecast'].mean():.0f}
+                    - **Actuals Average**: {historical_avg:.0f}
+                    - **Ratio**: {historical_avg / data['Driver_Forecast'].mean():.2f} (Actuals/Driver)
+                    
+                    **Forecast Impact:**
+                    - {"High" if abs(driver_corr) > 0.5 else "Moderate" if abs(driver_corr) > 0.3 else "Low"} influence on forecast
+                    - Driver forecast {"strongly supports" if driver_corr > 0.5 else "moderately supports" if driver_corr > 0.2 else "weakly relates to"} the call volume forecast
                     """
                 
                 else:
+                    # Provide a comprehensive overview for any other question
                     explanation = f"""
-                    **General Forecast Information:**
-                    Your question: "{question}"
+                    **🤖 Comprehensive Forecast Analysis:**
                     
-                    This is a simplified demo version. The full system would provide detailed,
-                    data-driven explanations using the actual AI agents and your specific data patterns.
+                    **Your Question**: "{question}"
                     
-                    Key aspects of the current forecast:
-                    - Based on trend and seasonal analysis
-                    - Uses {len(st.session_state['data'])} historical data points
-                    - Generates {len(st.session_state['agent1_forecast'])} period forecast
+                    **Key Forecast Insights:**
+                    - **Data Foundation**: {len(data)} historical data points
+                    - **Forecast Range**: {forecast.min():.0f} to {forecast.max():.0f} (Avg: {forecast_avg:.0f})
+                    - **vs Historical**: {((forecast_avg - historical_avg) / historical_avg * 100):+.1f}% change from historical average
+                    - **Trend**: {monthly_trend:+.1f} units per month
+                    - **Volatility**: ±{historical_std:.0f} typical variation
+                    
+                    **Pattern Recognition:**
+                    - **Seasonal Effect**: {seasonal_variation:.1f}% variation between peak/trough
+                    - **Driver Correlation**: {driver_corr:.2f} relationship strength
+                    - **Recent Performance**: Latest actual ({latest_actual:.0f}) vs forecast start
+                    
+                    **Business Implications:**
+                    - Plan for {forecast_avg:.0f} average call volume
+                    - Expect range between {forecast.min():.0f} and {forecast.max():.0f}
+                    - {"Growth trajectory" if trend_slope > 0 else "Declining trend" if trend_slope < 0 else "Stable pattern"} continues
                     """
                 
                 st.markdown("### 🎯 Explanation")
