@@ -7,9 +7,5 @@ This module handles:
 - Model configuration and optimization
 """
 
-from .phi3_model import Phi3Model
-from .langchain_wrapper import LangChainPhi3Wrapper
-from .model_config import ModelConfig
-
+# Avoid importing at module level to prevent circular imports
 __all__ = ['Phi3Model', 'LangChainPhi3Wrapper', 'ModelConfig']
-

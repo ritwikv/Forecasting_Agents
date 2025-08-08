@@ -7,12 +7,8 @@ This module contains the three main agents:
 - Agent3: Explanation Agent
 """
 
-from .base_agent import BaseAgent
-from .forecasting_agent import ForecastingAgent
-from .tweaking_agent import TweakingAgent
-from .explanation_agent import ExplanationAgent
-from .agent_orchestrator import AgentOrchestrator
-
+# Use absolute imports to avoid circular import issues
+# These will be imported when needed, not at module level
 __all__ = [
     'BaseAgent',
     'ForecastingAgent', 
@@ -20,4 +16,3 @@ __all__ = [
     'ExplanationAgent',
     'AgentOrchestrator'
 ]
-
