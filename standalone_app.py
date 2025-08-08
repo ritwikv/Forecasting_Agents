@@ -133,13 +133,13 @@ def main():
             fig = go.Figure()
             
             if 'Date' in data.columns:
-                x_axis = data['Date']
+                x_axis = data['Date'].tolist()
             else:
-                x_axis = range(len(data))
+                x_axis = list(range(len(data)))
             
             fig.add_trace(go.Scatter(
                 x=x_axis,
-                y=data['ACD Call Volume Actuals'],
+                y=data['ACD Call Volume Actuals'].tolist(),
                 mode='lines+markers',
                 name='Actuals',
                 line=dict(color='blue')
@@ -147,7 +147,7 @@ def main():
             
             fig.add_trace(go.Scatter(
                 x=x_axis,
-                y=data['Driver_Forecast'],
+                y=data['Driver_Forecast'].tolist(),
                 mode='lines+markers',
                 name='Driver Forecast',
                 line=dict(color='orange')
@@ -228,15 +228,15 @@ def main():
             
             # Historical data
             if 'Date' in data.columns:
-                hist_x = data['Date']
-                forecast_x = forecast_dates
+                hist_x = data['Date'].tolist()
+                forecast_x = forecast_dates.tolist()
             else:
-                hist_x = range(len(data))
-                forecast_x = range(len(data), len(data) + len(forecast))
+                hist_x = list(range(len(data)))
+                forecast_x = list(range(len(data), len(data) + len(forecast)))
             
             fig.add_trace(go.Scatter(
                 x=hist_x,
-                y=data['ACD Call Volume Actuals'],
+                y=data['ACD Call Volume Actuals'].tolist(),
                 mode='lines+markers',
                 name='Historical Actuals',
                 line=dict(color='blue')
@@ -244,7 +244,7 @@ def main():
             
             fig.add_trace(go.Scatter(
                 x=forecast_x,
-                y=forecast,
+                y=forecast.tolist(),
                 mode='lines+markers',
                 name='Agent 1 Forecast',
                 line=dict(color='red', dash='dash')
@@ -357,11 +357,11 @@ def main():
             # Visualization
             fig = go.Figure()
             
-            periods = range(1, len(original) + 1)
+            periods = list(range(1, len(original) + 1))
             
             fig.add_trace(go.Scatter(
                 x=periods,
-                y=original,
+                y=original.tolist(),
                 mode='lines+markers',
                 name='Agent 1 (Original)',
                 line=dict(color='red', dash='dash')
@@ -369,7 +369,7 @@ def main():
             
             fig.add_trace(go.Scatter(
                 x=periods,
-                y=tweaked,
+                y=tweaked.tolist(),
                 mode='lines+markers',
                 name='Agent 2 (Tweaked)',
                 line=dict(color='green')
@@ -489,4 +489,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
