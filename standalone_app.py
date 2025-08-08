@@ -297,39 +297,171 @@ def main():
         
         if st.button("🔧 Apply Tweaks") and instruction:
             with st.spinner("Processing instructions..."):
-                # Simple tweaking logic for testing
                 original_forecast = st.session_state['agent1_forecast'].copy()
+                data = st.session_state['data']
                 
-                # Basic keyword-based adjustments (simplified for testing)
-                if "reduce" in instruction.lower() or "decrease" in instruction.lower():
-                    if "15%" in instruction:
-                        adjustment = 0.85
-                    elif "10%" in instruction:
-                        adjustment = 0.90
+                # Advanced instruction parsing
+                instruction_lower = instruction.lower()
+                
+                # Extract percentage values from instruction
+                import re
+                percentages = re.findall(r'(\d+(?:\.\d+)?)%', instruction)
+                numbers = re.findall(r'(\d+(?:\.\d+)?)', instruction)
+                
+                # Initialize variables
+                tweaked_forecast = original_forecast.copy()
+                explanation = ""
+                
+                # INTELLIGENT INSTRUCTION PARSING
+                
+                # 1. PERCENTAGE-BASED ADJUSTMENTS
+                if any(word in instruction_lower for word in ["reduce", "decrease", "lower", "cut", "drop"]):
+                    if percentages:
+                        pct = float(percentages[0]) / 100
+                        adjustment = 1 - pct
+                        tweaked_forecast = original_forecast * adjustment
+                        explanation = f"🔻 Reduced forecast by {percentages[0]}% across all periods (factor: {adjustment:.2f})"
                     else:
-                        adjustment = 0.95
-                    tweaked_forecast = original_forecast * adjustment
-                    explanation = f"Applied reduction factor of {adjustment}"
-                    
-                elif "increase" in instruction.lower() or "higher" in instruction.lower():
-                    if "35%" in instruction:
-                        adjustment = 1.35
-                    elif "25%" in instruction:
-                        adjustment = 1.25
+                        # Look for specific amounts
+                        if any(word in instruction_lower for word in ["significantly", "much", "substantially"]):
+                            adjustment = 0.80  # 20% reduction
+                            explanation = "🔻 Applied significant reduction of 20% based on instruction"
+                        else:
+                            adjustment = 0.90  # 10% reduction
+                            explanation = "🔻 Applied moderate reduction of 10% based on instruction"
+                        tweaked_forecast = original_forecast * adjustment
+                
+                elif any(word in instruction_lower for word in ["increase", "raise", "boost", "higher", "up"]):
+                    if percentages:
+                        pct = float(percentages[0]) / 100
+                        adjustment = 1 + pct
+                        tweaked_forecast = original_forecast * adjustment
+                        explanation = f"🔺 Increased forecast by {percentages[0]}% across all periods (factor: {adjustment:.2f})"
                     else:
-                        adjustment = 1.10
-                    tweaked_forecast = original_forecast * adjustment
-                    explanation = f"Applied increase factor of {adjustment}"
+                        # Look for specific amounts
+                        if any(word in instruction_lower for word in ["significantly", "much", "substantially"]):
+                            adjustment = 1.25  # 25% increase
+                            explanation = "🔺 Applied significant increase of 25% based on instruction"
+                        else:
+                            adjustment = 1.15  # 15% increase
+                            explanation = "🔺 Applied moderate increase of 15% based on instruction"
+                        tweaked_forecast = original_forecast * adjustment
+                
+                # 2. SMOOTHING AND VOLATILITY ADJUSTMENTS
+                elif any(word in instruction_lower for word in ["smooth", "volatility", "stable", "consistent"]):
+                    # Apply moving average smoothing
+                    window_size = 3
+                    tweaked_forecast = pd.Series(original_forecast).rolling(window=window_size, center=True, min_periods=1).mean().values
+                    explanation = f"📊 Applied smoothing filter (window size: {window_size}) to reduce volatility"
+                
+                # 3. SPECIFIC MONTH/PERIOD ADJUSTMENTS
+                elif any(month in instruction_lower for month in ["january", "february", "march", "april", "may", "june", 
+                                                                "july", "august", "september", "october", "november", "december"]):
+                    # Extract month and adjustment
+                    months = ["january", "february", "march", "april", "may", "june", 
+                             "july", "august", "september", "october", "november", "december"]
+                    target_month = None
+                    for i, month in enumerate(months):
+                        if month in instruction_lower:
+                            target_month = i + 1
+                            break
                     
-                elif "smooth" in instruction.lower():
-                    # Simple smoothing
-                    tweaked_forecast = np.convolve(original_forecast, [0.25, 0.5, 0.25], mode='same')
-                    explanation = "Applied smoothing filter to reduce volatility"
+                    if target_month and len(original_forecast) >= target_month:
+                        period_idx = target_month - 1
+                        if percentages:
+                            pct = float(percentages[0]) / 100
+                            if any(word in instruction_lower for word in ["reduce", "decrease", "lower"]):
+                                tweaked_forecast[period_idx] = original_forecast[period_idx] * (1 - pct)
+                                explanation = f"📅 Reduced {months[target_month-1].title()} (Period {target_month}) by {percentages[0]}%"
+                            else:
+                                tweaked_forecast[period_idx] = original_forecast[period_idx] * (1 + pct)
+                                explanation = f"📅 Increased {months[target_month-1].title()} (Period {target_month}) by {percentages[0]}%"
+                        else:
+                            # Default 10% adjustment for specific month
+                            if any(word in instruction_lower for word in ["reduce", "decrease", "lower"]):
+                                tweaked_forecast[period_idx] = original_forecast[period_idx] * 0.90
+                                explanation = f"📅 Reduced {months[target_month-1].title()} (Period {target_month}) by 10%"
+                            else:
+                                tweaked_forecast[period_idx] = original_forecast[period_idx] * 1.10
+                                explanation = f"📅 Increased {months[target_month-1].title()} (Period {target_month}) by 10%"
+                
+                # 4. DRIVER-BASED ADJUSTMENTS
+                elif any(word in instruction_lower for word in ["driver", "align", "match"]):
+                    # Align with driver forecast pattern
+                    driver_avg = data['Driver_Forecast'].mean()
+                    forecast_avg = original_forecast.mean()
+                    ratio = driver_avg / forecast_avg
+                    tweaked_forecast = original_forecast * ratio
+                    explanation = f"🔗 Aligned forecast with driver pattern (ratio: {ratio:.2f})"
+                
+                # 5. HISTORICAL COMPARISON ADJUSTMENTS
+                elif any(word in instruction_lower for word in ["historical", "average", "typical", "normal"]):
+                    historical_avg = data['ACD Call Volume Actuals'].mean()
+                    forecast_avg = original_forecast.mean()
+                    ratio = historical_avg / forecast_avg
+                    tweaked_forecast = original_forecast * ratio
+                    explanation = f"📈 Adjusted to align with historical average (ratio: {ratio:.2f})"
+                
+                # 6. TREND ADJUSTMENTS
+                elif any(word in instruction_lower for word in ["trend", "growth", "decline"]):
+                    # Calculate current trend
+                    trend_slope = np.polyfit(range(len(data)), data['ACD Call Volume Actuals'], 1)[0]
                     
+                    if "accelerate" in instruction_lower or "faster" in instruction_lower:
+                        # Increase trend by 50%
+                        enhanced_trend = trend_slope * 1.5
+                        for i in range(len(tweaked_forecast)):
+                            tweaked_forecast[i] = original_forecast[0] + enhanced_trend * (i + 1)
+                        explanation = f"📈 Accelerated growth trend by 50% (new slope: {enhanced_trend:.1f})"
+                    
+                    elif "moderate" in instruction_lower or "slower" in instruction_lower:
+                        # Reduce trend by 50%
+                        moderated_trend = trend_slope * 0.5
+                        for i in range(len(tweaked_forecast)):
+                            tweaked_forecast[i] = original_forecast[0] + moderated_trend * (i + 1)
+                        explanation = f"📉 Moderated growth trend by 50% (new slope: {moderated_trend:.1f})"
+                
+                # 7. RANGE-BASED ADJUSTMENTS
+                elif any(word in instruction_lower for word in ["cap", "limit", "maximum", "minimum", "floor", "ceiling"]):
+                    if numbers:
+                        limit_value = float(numbers[0])
+                        if any(word in instruction_lower for word in ["maximum", "cap", "ceiling"]):
+                            tweaked_forecast = np.minimum(original_forecast, limit_value)
+                            explanation = f"🔒 Applied maximum cap of {limit_value} to all periods"
+                        elif any(word in instruction_lower for word in ["minimum", "floor"]):
+                            tweaked_forecast = np.maximum(original_forecast, limit_value)
+                            explanation = f"🔒 Applied minimum floor of {limit_value} to all periods"
+                
+                # 8. BUSINESS CONTEXT ADJUSTMENTS
+                elif any(word in instruction_lower for word in ["conservative", "aggressive", "optimistic", "pessimistic"]):
+                    if "conservative" in instruction_lower or "pessimistic" in instruction_lower:
+                        adjustment = 0.85  # 15% reduction
+                        tweaked_forecast = original_forecast * adjustment
+                        explanation = "🛡️ Applied conservative adjustment (-15%) for risk management"
+                    elif "aggressive" in instruction_lower or "optimistic" in instruction_lower:
+                        adjustment = 1.20  # 20% increase
+                        tweaked_forecast = original_forecast * adjustment
+                        explanation = "🚀 Applied aggressive adjustment (+20%) for growth planning"
+                
+                # 9. FALLBACK - INTELLIGENT DEFAULT
                 else:
-                    # Default small adjustment
-                    tweaked_forecast = original_forecast * 1.05
-                    explanation = "Applied default 5% increase based on instruction"
+                    # Analyze the instruction for sentiment and apply intelligent default
+                    if any(word in instruction_lower for word in ["too high", "overestimate", "excessive"]):
+                        adjustment = 0.90
+                        tweaked_forecast = original_forecast * adjustment
+                        explanation = "🔻 Applied 10% reduction based on 'too high' sentiment in instruction"
+                    elif any(word in instruction_lower for word in ["too low", "underestimate", "insufficient"]):
+                        adjustment = 1.15
+                        tweaked_forecast = original_forecast * adjustment
+                        explanation = "🔺 Applied 15% increase based on 'too low' sentiment in instruction"
+                    else:
+                        # Minimal adjustment with explanation
+                        adjustment = 1.02
+                        tweaked_forecast = original_forecast * adjustment
+                        explanation = f"⚙️ Applied minimal 2% adjustment. Instruction: '{instruction[:50]}...' - Consider using more specific terms like 'increase by 10%' or 'reduce December by 15%'"
+                
+                # Ensure forecast values are positive
+                tweaked_forecast = np.maximum(tweaked_forecast, 1)
                 
                 st.session_state['agent2_forecast'] = tweaked_forecast
                 st.session_state['tweak_explanation'] = explanation
