@@ -8,13 +8,20 @@ from typing import Dict, Any, Optional
 import logging
 from datetime import datetime, timedelta
 import traceback
+import sys
+import os
+
+# Add project root to Python path
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
 
 # Import components
-from .components.data_upload import DataUploadComponent
-from .components.forecast_display import ForecastDisplayComponent
-from .components.tweaking_interface import TweakingInterfaceComponent
-from .components.explanation_interface import ExplanationInterfaceComponent
-from .utils.chart_generator import ChartGenerator
+from ui.components.data_upload import DataUploadComponent
+from ui.components.forecast_display import ForecastDisplayComponent
+from ui.components.tweaking_interface import TweakingInterfaceComponent
+from ui.components.explanation_interface import ExplanationInterfaceComponent
+from ui.utils.chart_generator import ChartGenerator
 
 # Import system components
 from agents.agent_orchestrator import AgentOrchestrator
@@ -505,4 +512,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

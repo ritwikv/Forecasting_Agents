@@ -117,14 +117,17 @@ Place in project root or specify path in the UI.
 ### 3. Run Application
 
 ```bash
-# Method 1: Using run script
+# Method 1: Simple launcher (Recommended)
+python launch_app.py
+
+# Method 2: Using run script
 python run_app.py
 
-# Method 2: Direct Streamlit
+# Method 3: Direct Streamlit
 streamlit run ui/streamlit_app.py
 
-# Method 3: As installed package
-forecasting-system
+# Method 4: Test imports first
+python test_imports.py
 ```
 
 ### 4. Access Interface
@@ -314,4 +317,3 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ---
 
 **Built with ❤️ for accurate, explainable, and business-relevant forecasting**
-
