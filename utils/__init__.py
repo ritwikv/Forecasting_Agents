@@ -8,9 +8,5 @@ This module contains:
 - State management
 """
 
-from .forecasting_utils import ForecastingUtils
-from .statistical_tests import StatisticalTests
-from .state_manager import StateManager
-
+# Avoid importing at module level to prevent circular imports
 __all__ = ['ForecastingUtils', 'StatisticalTests', 'StateManager']
-

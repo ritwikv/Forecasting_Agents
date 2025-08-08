@@ -7,8 +7,5 @@ This module handles:
 - Time series data preparation
 """
 
-from .data_processor import DataProcessor
-from .validators import DataValidator
-
+# Avoid importing at module level to prevent circular imports
 __all__ = ['DataProcessor', 'DataValidator']
-
