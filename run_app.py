@@ -99,13 +99,15 @@ def main():
     
     # Import and run Streamlit app
     try:
-        from ui.streamlit_app import main as run_streamlit_app
+        import subprocess
+        import sys
         
         logger.info("Launching Streamlit application...")
         logger.info("Access the application at: http://localhost:8501")
         
-        # Run Streamlit app
-        run_streamlit_app()
+        # Run Streamlit app using subprocess to avoid import issues
+        streamlit_path = os.path.join(project_root, "ui", "streamlit_app.py")
+        subprocess.run([sys.executable, "-m", "streamlit", "run", streamlit_path])
         
     except ImportError as e:
         logger.error(f"Failed to import Streamlit app: {str(e)}")
@@ -117,4 +119,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
