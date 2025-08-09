@@ -39,8 +39,54 @@ def create_sample_data():
         'Driver_Forecast': drivers.astype(int)
     })
 
+def generate_linear_trend_forecast(actuals, periods=6):
+    """Linear trend forecasting method"""
+    if len(actuals) < 3:
+        # Fallback for insufficient data
+        trend = np.mean(np.diff(actuals[-2:]))
+        return np.array([actuals[-1] + trend * (i + 1) for i in range(periods)])
+    
+    # Fit linear trend
+    x = np.arange(len(actuals))
+    trend_coef, intercept = np.polyfit(x, actuals, 1)
+    
+    # Generate forecast
+    future_x = np.arange(len(actuals), len(actuals) + periods)
+    forecast = trend_coef * future_x + intercept
+    
+    return forecast
+
+def generate_seasonal_naive_forecast(actuals, periods=6, seasonal_period=12):
+    """Seasonal naive forecasting method"""
+    if len(actuals) < seasonal_period:
+        # Fallback to simple trend if not enough data for seasonality
+        trend = np.mean(np.diff(actuals[-min(6, len(actuals)-1):]))
+        return np.array([actuals[-1] + trend * (i + 1) for i in range(periods)])
+    
+    # Use seasonal naive approach
+    forecast = []
+    for i in range(periods):
+        seasonal_index = (len(actuals) + i) % seasonal_period
+        if seasonal_index < len(actuals):
+            forecast.append(actuals[-(seasonal_period - seasonal_index)])
+        else:
+            forecast.append(actuals[-1])  # Fallback to last value
+    
+    return np.array(forecast)
+
+def generate_ensemble_forecast(actuals, periods=6):
+    """Ensemble forecasting method combining trend and seasonal"""
+    # Generate both forecasts
+    trend_forecast = generate_linear_trend_forecast(actuals, periods)
+    seasonal_forecast = generate_seasonal_naive_forecast(actuals, periods)
+    
+    # Combine with weights (70% trend, 30% seasonal)
+    ensemble_forecast = 0.7 * trend_forecast + 0.3 * seasonal_forecast
+    
+    return ensemble_forecast
+
 def simple_forecast(data, periods=6):
-    """Simple forecasting method for testing"""
+    """Simple forecasting method for testing (legacy)"""
     actuals = data['ACD Call Volume Actuals'].values
     
     # Simple linear trend + seasonal naive
@@ -190,20 +236,35 @@ def main():
         
         if st.button("🚀 Generate Forecast"):
             with st.spinner("Generating forecast..."):
-                # Simple forecast for testing
-                forecast = simple_forecast(data, forecast_periods)
+                # Generate forecast based on selected method
+                actuals = data['ACD Call Volume Actuals'].values
+                
+                if method == "Simple Trend":
+                    forecast = generate_linear_trend_forecast(actuals, forecast_periods)
+                elif method == "Seasonal Naive":
+                    forecast = generate_seasonal_naive_forecast(actuals, forecast_periods)
+                elif method == "Ensemble":
+                    forecast = generate_ensemble_forecast(actuals, forecast_periods)
+                else:
+                    # Fallback to simple forecast
+                    forecast = simple_forecast(data, forecast_periods)
                 
                 # Store in session state
                 st.session_state['agent1_forecast'] = forecast
                 st.session_state['forecast_periods'] = forecast_periods
+                st.session_state['selected_method'] = method
                 
-                st.success("✅ Forecast generated successfully!")
+                st.success(f"✅ Forecast generated using {method} method!")
         
         # Display forecast if available
         if 'agent1_forecast' in st.session_state:
             forecast = st.session_state['agent1_forecast']
             
             st.subheader("📊 Forecast Results")
+            
+            # Show selected method
+            selected_method = st.session_state.get('selected_method', 'Unknown')
+            st.info(f"🔧 **Method Used:** {selected_method}")
             
             # Create forecast dataframe
             last_date = data['Date'].iloc[-1] if 'Date' in data.columns else len(data)
