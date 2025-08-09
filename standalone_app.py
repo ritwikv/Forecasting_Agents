@@ -570,6 +570,9 @@ def main():
                     low_month = "N/A" 
                     seasonal_variation = 0
                 
+                # Define monthly_trend for use in all explanation branches
+                monthly_trend = trend_slope
+                
                 # Generate intelligent explanations based on actual data
                 if any(word in question.lower() for word in ["higher", "increase", "peak", "maximum"]):
                     max_forecast_idx = np.argmax(forecast)
@@ -689,7 +692,6 @@ def main():
                         """
                 
                 elif any(word in question.lower() for word in ["trend", "growth", "direction"]):
-                    monthly_trend = trend_slope
                     annual_trend = monthly_trend * 12
                     explanation = f"""
                     **📈 Trend Analysis:**
