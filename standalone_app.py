@@ -39,31 +39,70 @@ def create_sample_data():
         'Driver_Forecast': drivers.astype(int)
     })
 
+def calculate_mape(actual, fitted):
+    """Calculate Mean Absolute Percentage Error"""
+    actual = np.array(actual)
+    fitted = np.array(fitted)
+    
+    # Remove zero values to avoid division by zero
+    mask = actual != 0
+    if not np.any(mask):
+        return float('inf')
+    
+    mape = np.mean(np.abs((actual[mask] - fitted[mask]) / actual[mask])) * 100
+    return mape
+
 def generate_linear_trend_forecast(actuals, periods=6):
     """Linear trend forecasting method"""
     if len(actuals) < 3:
         # Fallback for insufficient data
         trend = np.mean(np.diff(actuals[-2:]))
-        return np.array([actuals[-1] + trend * (i + 1) for i in range(periods)])
+        forecast = np.array([actuals[-1] + trend * (i + 1) for i in range(periods)])
+        fitted = np.array([actuals[-1] + trend * i for i in range(1, len(actuals) + 1)])
+        mape = calculate_mape(actuals, fitted[-len(actuals):])
+        return forecast, mape
     
     # Fit linear trend
     x = np.arange(len(actuals))
     trend_coef, intercept = np.polyfit(x, actuals, 1)
     
+    # Calculate fitted values for MAPE
+    fitted = trend_coef * x + intercept
+    mape = calculate_mape(actuals, fitted)
+    
     # Generate forecast
     future_x = np.arange(len(actuals), len(actuals) + periods)
     forecast = trend_coef * future_x + intercept
     
-    return forecast
+    return forecast, mape
 
 def generate_seasonal_naive_forecast(actuals, periods=6, seasonal_period=12):
     """Seasonal naive forecasting method"""
     if len(actuals) < seasonal_period:
         # Fallback to simple trend if not enough data for seasonality
         trend = np.mean(np.diff(actuals[-min(6, len(actuals)-1):]))
-        return np.array([actuals[-1] + trend * (i + 1) for i in range(periods)])
+        forecast = np.array([actuals[-1] + trend * (i + 1) for i in range(periods)])
+        fitted = np.array([actuals[-1] + trend * i for i in range(1, len(actuals) + 1)])
+        mape = calculate_mape(actuals, fitted[-len(actuals):])
+        return forecast, mape
     
-    # Use seasonal naive approach
+    # Generate fitted values for MAPE calculation
+    fitted = []
+    for i in range(len(actuals)):
+        if i < seasonal_period:
+            fitted.append(actuals[i])  # Use actual for first season
+        else:
+            fitted.append(actuals[i - seasonal_period])
+    
+    # Calculate MAPE (skip first seasonal period for accuracy)
+    if len(actuals) > seasonal_period:
+        actual_for_mape = actuals[seasonal_period:]
+        fitted_for_mape = fitted[seasonal_period:]
+        mape = calculate_mape(actual_for_mape, fitted_for_mape)
+    else:
+        mape = float('inf')
+    
+    # Use seasonal naive approach for forecast
     forecast = []
     for i in range(periods):
         seasonal_index = (len(actuals) + i) % seasonal_period
@@ -72,18 +111,28 @@ def generate_seasonal_naive_forecast(actuals, periods=6, seasonal_period=12):
         else:
             forecast.append(actuals[-1])  # Fallback to last value
     
-    return np.array(forecast)
+    return np.array(forecast), mape
 
 def generate_ensemble_forecast(actuals, periods=6):
     """Ensemble forecasting method combining trend and seasonal"""
-    # Generate both forecasts
-    trend_forecast = generate_linear_trend_forecast(actuals, periods)
-    seasonal_forecast = generate_seasonal_naive_forecast(actuals, periods)
+    # Generate both forecasts with their MAPEs
+    trend_forecast, trend_mape = generate_linear_trend_forecast(actuals, periods)
+    seasonal_forecast, seasonal_mape = generate_seasonal_naive_forecast(actuals, periods)
     
-    # Combine with weights (70% trend, 30% seasonal)
+    # Combine forecasts with weights (70% trend, 30% seasonal)
     ensemble_forecast = 0.7 * trend_forecast + 0.3 * seasonal_forecast
     
-    return ensemble_forecast
+    # Calculate ensemble MAPE as weighted average of component MAPEs
+    if trend_mape != float('inf') and seasonal_mape != float('inf'):
+        ensemble_mape = 0.7 * trend_mape + 0.3 * seasonal_mape
+    elif trend_mape != float('inf'):
+        ensemble_mape = trend_mape
+    elif seasonal_mape != float('inf'):
+        ensemble_mape = seasonal_mape
+    else:
+        ensemble_mape = float('inf')
+    
+    return ensemble_forecast, ensemble_mape
 
 def simple_forecast(data, periods=6):
     """Simple forecasting method for testing (legacy)"""
@@ -240,19 +289,21 @@ def main():
                 actuals = data['ACD Call Volume Actuals'].values
                 
                 if method == "Simple Trend":
-                    forecast = generate_linear_trend_forecast(actuals, forecast_periods)
+                    forecast, mape = generate_linear_trend_forecast(actuals, forecast_periods)
                 elif method == "Seasonal Naive":
-                    forecast = generate_seasonal_naive_forecast(actuals, forecast_periods)
+                    forecast, mape = generate_seasonal_naive_forecast(actuals, forecast_periods)
                 elif method == "Ensemble":
-                    forecast = generate_ensemble_forecast(actuals, forecast_periods)
+                    forecast, mape = generate_ensemble_forecast(actuals, forecast_periods)
                 else:
-                    # Fallback to simple forecast
+                    # Fallback to simple forecast (no MAPE calculation for legacy method)
                     forecast = simple_forecast(data, forecast_periods)
+                    mape = None
                 
                 # Store in session state
                 st.session_state['agent1_forecast'] = forecast
                 st.session_state['forecast_periods'] = forecast_periods
                 st.session_state['selected_method'] = method
+                st.session_state['forecast_mape'] = mape
                 
                 st.success(f"✅ Forecast generated using {method} method!")
         
@@ -262,9 +313,18 @@ def main():
             
             st.subheader("📊 Forecast Results")
             
-            # Show selected method
+            # Show selected method and MAPE
             selected_method = st.session_state.get('selected_method', 'Unknown')
-            st.info(f"🔧 **Method Used:** {selected_method}")
+            forecast_mape = st.session_state.get('forecast_mape', None)
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                st.info(f"🔧 **Method Used:** {selected_method}")
+            with col2:
+                if forecast_mape is not None and forecast_mape != float('inf'):
+                    st.info(f"📊 **MAPE:** {forecast_mape:.2f}%")
+                else:
+                    st.info("📊 **MAPE:** Not available")
             
             # Create forecast dataframe
             last_date = data['Date'].iloc[-1] if 'Date' in data.columns else len(data)
@@ -807,6 +867,8 @@ def main():
                     
                     **Key Forecast Insights:**
                     - **Data Foundation**: {len(data)} historical data points
+                    - **Method Used**: {st.session_state.get('selected_method', 'Unknown')}
+                    - **Model Accuracy**: {f"{st.session_state.get('forecast_mape', 0):.2f}% MAPE" + (' (Excellent)' if st.session_state.get('forecast_mape', float('inf')) < 10 else ' (Good)' if st.session_state.get('forecast_mape', float('inf')) < 20 else ' (Fair)' if st.session_state.get('forecast_mape', float('inf')) < 50 else ' (Needs Review)') if st.session_state.get('forecast_mape') is not None and st.session_state.get('forecast_mape') != float('inf') else 'Not available'}
                     - **Forecast Range**: {forecast.min():.0f} to {forecast.max():.0f} (Avg: {forecast_avg:.0f})
                     - **vs Historical**: {((forecast_avg - historical_avg) / historical_avg * 100):+.1f}% change from historical average
                     - **Trend**: {monthly_trend:+.1f} units per month
