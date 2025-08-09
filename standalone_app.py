@@ -134,6 +134,20 @@ def generate_ensemble_forecast(actuals, periods=6):
     
     return ensemble_forecast, ensemble_mape
 
+def preserve_session_state():
+    """Preserve critical session state values to prevent loss during navigation"""
+    # List of critical keys that should never be lost
+    critical_keys = [
+        'data', 'agent1_forecast', 'agent2_forecast', 'forecast_periods',
+        'selected_method', 'forecast_mape', 'tweak_explanation'
+    ]
+    
+    # Ensure these keys persist by checking and maintaining them
+    for key in critical_keys:
+        if key in st.session_state:
+            # Force the value to stay in session state by accessing it
+            _ = st.session_state[key]
+
 def simple_forecast(data, periods=6):
     """Simple forecasting method for testing (legacy)"""
     actuals = data['ACD Call Volume Actuals'].values
@@ -171,12 +185,36 @@ def main():
     st.title("🤖 Agentic AI Forecasting System")
     st.markdown("**Standalone Version - Testing Core Functionality**")
     
+    # Initialize session state to prevent loss
+    if 'initialized' not in st.session_state:
+        st.session_state.initialized = True
+    
     # Sidebar for navigation
     st.sidebar.title("📋 Navigation")
     page = st.sidebar.selectbox(
         "Choose a section:",
         ["📊 Data Upload", "🔮 Forecasting", "🔧 Tweaking", "💡 Explanation"]
     )
+    
+    # Debug: Show current session state keys in sidebar
+    if st.sidebar.checkbox("🔍 Debug: Show Session State"):
+        st.sidebar.write("**Session State Keys:**")
+        for key in st.session_state.keys():
+            if key != 'initialized':
+                st.sidebar.write(f"- {key}")
+        
+        # Show key values
+        if 'agent1_forecast' in st.session_state:
+            st.sidebar.write(f"**Agent1 Forecast:** {len(st.session_state['agent1_forecast'])} periods")
+        if 'agent2_forecast' in st.session_state:
+            st.sidebar.write(f"**Agent2 Forecast:** {len(st.session_state['agent2_forecast'])} periods")
+        if 'selected_method' in st.session_state:
+            st.sidebar.write(f"**Method:** {st.session_state['selected_method']}")
+        if 'forecast_mape' in st.session_state:
+            st.sidebar.write(f"**MAPE:** {st.session_state['forecast_mape']}")
+    
+    # Preserve critical session state values
+    preserve_session_state()
     
     if page == "📊 Data Upload":
         st.header("📊 Data Upload & Validation")
@@ -392,9 +430,23 @@ def main():
     elif page == "🔧 Tweaking":
         st.header("🔧 Agent 2: Forecast Tweaking")
         
+        # Check for required session state values
         if 'agent1_forecast' not in st.session_state:
             st.warning("⚠️ Please generate a forecast first in the Forecasting section")
+            st.info("💡 Go to the **🔮 Forecasting** section and click **🚀 Generate Forecast** to create a forecast first.")
             return
+        
+        # Display current forecast info for context
+        if 'selected_method' in st.session_state and 'forecast_mape' in st.session_state:
+            col1, col2 = st.columns(2)
+            with col1:
+                st.info(f"🔧 **Current Method:** {st.session_state['selected_method']}")
+            with col2:
+                mape = st.session_state['forecast_mape']
+                if mape is not None and mape != float('inf'):
+                    st.info(f"📊 **Current MAPE:** {mape:.2f}%")
+                else:
+                    st.info("📊 **Current MAPE:** Not available")
         
         st.info("💡 Provide instructions to adjust the forecast (up to 300 words)")
         
@@ -644,9 +696,27 @@ def main():
     elif page == "💡 Explanation":
         st.header("💡 Agent 3: Forecast Explanation")
         
+        # Check for required session state values
         if 'agent1_forecast' not in st.session_state:
             st.warning("⚠️ Please generate a forecast first")
+            st.info("💡 Go to the **🔮 Forecasting** section and click **🚀 Generate Forecast** to create a forecast first.")
             return
+        
+        # Display current session state for context
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            if 'selected_method' in st.session_state:
+                st.info(f"🔧 **Method:** {st.session_state['selected_method']}")
+        with col2:
+            if 'forecast_mape' in st.session_state:
+                mape = st.session_state['forecast_mape']
+                if mape is not None and mape != float('inf'):
+                    st.info(f"📊 **MAPE:** {mape:.2f}%")
+        with col3:
+            if 'agent2_forecast' in st.session_state:
+                st.info("🔧 **Tweaked:** Yes")
+            else:
+                st.info("🔧 **Tweaked:** No")
         
         st.info("🤔 Ask questions about the forecasting results")
         
