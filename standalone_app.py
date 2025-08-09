@@ -570,8 +570,9 @@ def main():
                     low_month = "N/A" 
                     seasonal_variation = 0
                 
-                # Define monthly_trend for use in all explanation branches
+                # Define variables for use in all explanation branches
                 monthly_trend = trend_slope
+                driver_corr = np.corrcoef(data['ACD Call Volume Actuals'], data['Driver_Forecast'])[0,1]
                 
                 # Generate intelligent explanations based on actual data
                 if any(word in question.lower() for word in ["higher", "increase", "peak", "maximum"]):
@@ -712,7 +713,6 @@ def main():
                     """
                 
                 elif any(word in question.lower() for word in ["driver", "correlation", "relationship"]):
-                    driver_corr = np.corrcoef(data['ACD Call Volume Actuals'], data['Driver_Forecast'])[0,1]
                     explanation = f"""
                     **🔗 Driver Relationship Analysis:**
                     
