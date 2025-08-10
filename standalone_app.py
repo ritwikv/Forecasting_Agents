@@ -647,51 +647,265 @@ def main():
             
             original = st.session_state['agent1_forecast']
             tweaked = st.session_state['agent2_forecast']
+            data = st.session_state['data']
             
-            # Comparison table
-            comparison_df = pd.DataFrame({
-                'Period': range(1, len(original) + 1),
-                'Agent 1 (Original)': original.astype(int),
-                'Agent 2 (Tweaked)': tweaked.astype(int),
-                'Difference': (tweaked - original).astype(int),
-                'Change %': ((tweaked - original) / original * 100).round(1)
-            })
+            # Toggle controls for additional data series
+            st.subheader("🎛️ Display Options")
+            col1, col2, col3 = st.columns(3)
             
-            st.dataframe(comparison_df)
+            with col1:
+                show_historical = st.checkbox("📈 Show Historical Context", value=True, 
+                                            help="Show recent actual volume data for context")
+            with col2:
+                show_driver = st.checkbox("🚗 Show Driver Forecast", value=True,
+                                        help="Show driver forecast data for comparison")
+            with col3:
+                context_periods = st.selectbox("Historical Periods", [3, 6, 9, 12], index=1,
+                                             help="Number of historical periods to show")
             
-            # Visualization
+            # Prepare data for comparison
+            forecast_periods = len(original)
+            
+            # Get recent historical data for context
+            recent_actuals = data['ACD Call Volume Actuals'].tail(context_periods).values
+            recent_drivers = data['Driver_Forecast'].tail(context_periods).values
+            
+            # Create extended comparison with historical context
+            if show_historical:
+                # Combine historical and forecast periods
+                total_periods = context_periods + forecast_periods
+                period_labels = (
+                    [f"H-{context_periods-i}" for i in range(context_periods)] +  # Historical periods
+                    [f"F+{i+1}" for i in range(forecast_periods)]  # Forecast periods
+                )
+                
+                # Prepare data arrays
+                actuals_extended = list(recent_actuals) + [None] * forecast_periods
+                drivers_extended = list(recent_drivers) + [None] * forecast_periods
+                agent1_extended = [None] * context_periods + list(original)
+                agent2_extended = [None] * context_periods + list(tweaked)
+                
+            else:
+                # Show only forecast periods
+                total_periods = forecast_periods
+                period_labels = [f"F+{i+1}" for i in range(forecast_periods)]
+                actuals_extended = [None] * forecast_periods
+                drivers_extended = [None] * forecast_periods
+                agent1_extended = list(original)
+                agent2_extended = list(tweaked)
+            
+            # Create comprehensive comparison table
+            comparison_data = {
+                'Period': period_labels,
+                'Agent 1 (Original)': [int(x) if x is not None else '-' for x in agent1_extended],
+                'Agent 2 (Tweaked)': [int(x) if x is not None else '-' for x in agent2_extended],
+            }
+            
+            if show_historical:
+                comparison_data['Actual Volume'] = [int(x) if x is not None else '-' for x in actuals_extended]
+            
+            if show_driver:
+                comparison_data['Driver Forecast'] = [int(x) if x is not None else '-' for x in drivers_extended]
+            
+            # Add difference and change % for forecast periods only
+            differences = []
+            change_pcts = []
+            
+            for i in range(total_periods):
+                if show_historical and i < context_periods:
+                    differences.append('-')
+                    change_pcts.append('-')
+                else:
+                    idx = i - context_periods if show_historical else i
+                    diff = int(tweaked[idx] - original[idx])
+                    pct = round((tweaked[idx] - original[idx]) / original[idx] * 100, 1)
+                    differences.append(diff)
+                    change_pcts.append(pct)
+            
+            comparison_data['Difference (A2-A1)'] = differences
+            comparison_data['Change %'] = change_pcts
+            
+            comparison_df = pd.DataFrame(comparison_data)
+            
+            # Style the dataframe to highlight different sections
+            def highlight_sections(row):
+                if show_historical:
+                    if row.name < context_periods:
+                        return ['background-color: #f0f8ff'] * len(row)  # Light blue for historical
+                    else:
+                        return ['background-color: #f0fff0'] * len(row)  # Light green for forecast
+                else:
+                    return [''] * len(row)
+            
+            st.dataframe(comparison_df.style.apply(highlight_sections, axis=1), use_container_width=True)
+            
+            # Enhanced Visualization
             fig = go.Figure()
             
-            periods = list(range(1, len(original) + 1))
+            # Prepare x-axis
+            if show_historical:
+                x_axis = list(range(-context_periods, 0)) + list(range(1, forecast_periods + 1))
+                x_labels = [f"H-{context_periods-i}" for i in range(context_periods)] + [f"F+{i+1}" for i in range(forecast_periods)]
+            else:
+                x_axis = list(range(1, forecast_periods + 1))
+                x_labels = [f"F+{i+1}" for i in range(forecast_periods)]
             
+            # Add historical actual volume
+            if show_historical:
+                fig.add_trace(go.Scatter(
+                    x=x_axis[:context_periods],
+                    y=recent_actuals.tolist(),
+                    mode='lines+markers',
+                    name='📈 Actual Volume (Historical)',
+                    line=dict(color='blue', width=3),
+                    marker=dict(size=8)
+                ))
+            
+            # Add driver forecast
+            if show_driver:
+                if show_historical:
+                    fig.add_trace(go.Scatter(
+                        x=x_axis[:context_periods],
+                        y=recent_drivers.tolist(),
+                        mode='lines+markers',
+                        name='🚗 Driver Forecast (Historical)',
+                        line=dict(color='orange', width=2, dash='dot'),
+                        marker=dict(size=6)
+                    ))
+                
+                # Extend driver forecast if available (using simple trend)
+                if len(recent_drivers) >= 2:
+                    driver_trend = np.mean(np.diff(recent_drivers[-3:]))
+                    extended_drivers = [recent_drivers[-1] + driver_trend * (i + 1) for i in range(forecast_periods)]
+                    
+                    fig.add_trace(go.Scatter(
+                        x=x_axis[-forecast_periods:] if show_historical else x_axis,
+                        y=extended_drivers,
+                        mode='lines+markers',
+                        name='🚗 Driver Forecast (Extended)',
+                        line=dict(color='orange', width=2, dash='dash'),
+                        marker=dict(size=6, symbol='diamond')
+                    ))
+            
+            # Add Agent 1 forecast
             fig.add_trace(go.Scatter(
-                x=periods,
+                x=x_axis[-forecast_periods:] if show_historical else x_axis,
                 y=original.tolist(),
                 mode='lines+markers',
-                name='Agent 1 (Original)',
-                line=dict(color='red', dash='dash')
+                name='🤖 Agent 1 (Original)',
+                line=dict(color='red', width=2, dash='dash'),
+                marker=dict(size=7)
             ))
             
+            # Add Agent 2 forecast
             fig.add_trace(go.Scatter(
-                x=periods,
+                x=x_axis[-forecast_periods:] if show_historical else x_axis,
                 y=tweaked.tolist(),
                 mode='lines+markers',
-                name='Agent 2 (Tweaked)',
-                line=dict(color='green')
+                name='🔧 Agent 2 (Tweaked)',
+                line=dict(color='green', width=3),
+                marker=dict(size=8)
             ))
             
+            # Add vertical line to separate historical from forecast
+            if show_historical:
+                fig.add_vline(x=0.5, line_dash="solid", line_color="gray", 
+                             annotation_text="Historical | Forecast", 
+                             annotation_position="top")
+            
+            # Update layout
             fig.update_layout(
-                title="Forecast Comparison: Agent 1 vs Agent 2",
-                xaxis_title="Forecast Period",
+                title="📊 Comprehensive Forecast Comparison",
+                xaxis_title="Time Period",
                 yaxis_title="Call Volume",
-                hovermode='x unified'
+                hovermode='x unified',
+                legend=dict(
+                    orientation="h",
+                    yanchor="bottom",
+                    y=1.02,
+                    xanchor="right",
+                    x=1
+                ),
+                height=600
+            )
+            
+            # Update x-axis with custom labels
+            fig.update_xaxes(
+                tickmode='array',
+                tickvals=x_axis,
+                ticktext=x_labels,
+                tickangle=45
             )
             
             st.plotly_chart(fig, use_container_width=True)
             
+            # Enhanced Analysis Section
+            st.subheader("📈 Forecast Analysis")
+            
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                st.metric(
+                    "Total Change (A2 vs A1)",
+                    f"{int(sum(tweaked) - sum(original)):,}",
+                    f"{((sum(tweaked) - sum(original)) / sum(original) * 100):.1f}%"
+                )
+            
+            with col2:
+                if show_historical:
+                    recent_avg = np.mean(recent_actuals)
+                    forecast_avg = np.mean(tweaked)
+                    st.metric(
+                        "vs Recent Historical Avg",
+                        f"{int(forecast_avg - recent_avg):,}",
+                        f"{((forecast_avg - recent_avg) / recent_avg * 100):.1f}%"
+                    )
+            
+            with col3:
+                if show_driver:
+                    driver_avg = np.mean(recent_drivers)
+                    forecast_avg = np.mean(tweaked)
+                    st.metric(
+                        "vs Driver Forecast Avg",
+                        f"{int(forecast_avg - driver_avg):,}",
+                        f"{((forecast_avg - driver_avg) / driver_avg * 100):.1f}%"
+                    )
+            
             # Explanation
             if 'tweak_explanation' in st.session_state:
                 st.info(f"**Adjustment Applied:** {st.session_state['tweak_explanation']}")
+            
+            # Additional insights
+            with st.expander("🔍 Detailed Insights"):
+                st.write("**Forecast Performance Insights:**")
+                
+                if show_historical:
+                    # Compare forecast trend with historical trend
+                    hist_trend = np.polyfit(range(len(recent_actuals)), recent_actuals, 1)[0]
+                    forecast_trend = np.polyfit(range(len(tweaked)), tweaked, 1)[0]
+                    
+                    st.write(f"• Historical trend: {hist_trend:.1f} units per period")
+                    st.write(f"• Agent 2 forecast trend: {forecast_trend:.1f} units per period")
+                    
+                    if abs(forecast_trend - hist_trend) / abs(hist_trend) > 0.5:
+                        st.warning("⚠️ Forecast trend significantly differs from historical trend")
+                    else:
+                        st.success("✅ Forecast trend aligns well with historical pattern")
+                
+                # Volatility analysis
+                if len(tweaked) > 1:
+                    forecast_volatility = np.std(tweaked) / np.mean(tweaked)
+                    if show_historical:
+                        hist_volatility = np.std(recent_actuals) / np.mean(recent_actuals)
+                        st.write(f"• Historical volatility: {hist_volatility:.3f}")
+                        st.write(f"• Agent 2 forecast volatility: {forecast_volatility:.3f}")
+                    else:
+                        st.write(f"• Agent 2 forecast volatility: {forecast_volatility:.3f}")
+                
+                # Range analysis
+                st.write(f"• Agent 2 forecast range: {int(min(tweaked)):,} - {int(max(tweaked)):,}")
+                if show_historical:
+                    st.write(f"• Historical range: {int(min(recent_actuals)):,} - {int(max(recent_actuals)):,}")
     
     elif page == "💡 Explanation":
         st.header("💡 Agent 3: Forecast Explanation")
