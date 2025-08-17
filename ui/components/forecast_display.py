@@ -276,6 +276,43 @@ class ForecastDisplayComponent:
                     })
                 
                 st.dataframe(pd.DataFrame(model_comparison), hide_index=True)
+                
+                # Add explanation for Driver-Enhanced Regression if not selected
+                driver_significance = agent1_result.get('driver_significance', {})
+                best_method = agent1_result.get('method_name', '')
+                
+                if 'driver_enhanced' not in best_method and 'driver_significance' in agent1_result:
+                    st.subheader("Driver-Enhanced Regression Analysis")
+                    
+                    if not driver_significance.get('is_significant', False):
+                        st.warning("⚠️ Driver-Enhanced Regression was not selected because the driver variable is not statistically significant.")
+                        
+                        # Display statistical test values
+                        st.markdown(f"""
+                        **Statistical Test Results:**
+                        - Correlation: {driver_significance.get('correlation', 0):.3f}
+                        - P-value: {driver_significance.get('p_value', 0):.4f} (threshold: {agent1_result.get('significance_threshold', 0.05):.2f})
+                        - Test used: {driver_significance.get('test_method', 'Correlation test')}
+                        
+                        For Driver-Enhanced Regression to be considered, the p-value should be below the significance threshold, 
+                        indicating a statistically significant relationship between the driver variable and the target.
+                        """)
+                    else:
+                        # If driver is significant but another method was selected
+                        st.info("ℹ️ Although the driver variable is statistically significant, another forecasting method achieved better accuracy (lower MAPE).")
+                        
+                        # Show comparison with driver-enhanced method if available
+                        if 'driver_enhanced' in models_tested:
+                            driver_mape = models_tested['driver_enhanced']['accuracy']['mape']
+                            best_mape = agent1_result['accuracy_metrics']['mape']
+                            mape_diff = driver_mape - best_mape
+                            
+                            st.markdown(f"""
+                            **Comparison:**
+                            - Selected method ({best_method.replace('_', ' ').title()}) MAPE: {best_mape:.2f}%
+                            - Driver-Enhanced Regression MAPE: {driver_mape:.2f}%
+                            - Difference: {mape_diff:+.2f}% (positive means Driver-Enhanced performed worse)
+                            """)
     
     def _render_agent2_details(self, agent2_result: Dict[str, Any]):
         """Render Agent 2 detailed results"""
@@ -408,4 +445,3 @@ class ForecastDisplayComponent:
         )
         
         return fig
-

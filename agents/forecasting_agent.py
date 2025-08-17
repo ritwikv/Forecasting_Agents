@@ -151,6 +151,8 @@ Always explain your reasoning in terms of statistical significance, data suffici
                 'model_details': best_model,
                 'all_models_tested': forecast_results,
                 'ai_explanation': ai_explanation,
+                'significance_threshold': self.config['significance_threshold'],
+                'method_name': best_model['method_name'],
                 'recommendations': self._generate_recommendations(
                     len(actuals), best_model['accuracy']['mape']
                 ),
@@ -514,4 +516,3 @@ Always explain your reasoning in terms of statistical significance, data suffici
                 'error': str(e),
                 'agent': self.agent_name
             }
-
