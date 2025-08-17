@@ -134,6 +134,71 @@ def generate_ensemble_forecast(actuals, periods=6):
     
     return ensemble_forecast, ensemble_mape
 
+def generate_simple_exponential_smoothing(actuals, periods=6, alpha=0.3):
+    """Simple exponential smoothing forecast"""
+    if len(actuals) < 2:
+        # Fallback for insufficient data
+        return np.array([actuals[0]] * periods), float('inf')
+    
+    # Initialize
+    smoothed = np.zeros(len(actuals))
+    smoothed[0] = actuals[0]
+    
+    # Apply exponential smoothing
+    for i in range(1, len(actuals)):
+        smoothed[i] = alpha * actuals[i] + (1 - alpha) * smoothed[i-1]
+    
+    # Forecast future periods
+    last_smoothed = smoothed[-1]
+    forecast = np.array([last_smoothed] * periods)
+    
+    # Calculate in-sample accuracy
+    fitted_values = smoothed[1:]  # Skip first value
+    actual_values = actuals[1:]
+    mape = calculate_mape(actual_values, fitted_values)
+    
+    return forecast, mape
+
+def generate_driver_enhanced_forecast(actuals, driver_forecast, periods=6):
+    """Driver-enhanced regression forecast"""
+    if len(actuals) < 3 or len(driver_forecast) < 3:
+        # Fallback for insufficient data
+        return np.array([actuals[-1]] * periods), float('inf')
+    
+    # Use driver forecast as predictor
+    X = np.array(driver_forecast).reshape(-1, 1)
+    y = np.array(actuals)
+    
+    # Fit regression model
+    from sklearn.linear_model import LinearRegression
+    model = LinearRegression()
+    model.fit(X, y)
+    
+    # Generate fitted values
+    fitted_values = model.predict(X)
+    
+    # For forecast, we need future driver values
+    # Use the last known driver value or trend
+    if len(driver_forecast) > 0:
+        last_driver = driver_forecast[-1]
+        # Simple assumption: driver forecast remains constant or follows trend
+        if len(driver_forecast) > 1:
+            driver_trend = driver_forecast[-1] - driver_forecast[-2]
+            future_drivers = np.array([last_driver + driver_trend * (i + 1) for i in range(periods)])
+        else:
+            future_drivers = np.array([last_driver] * periods)
+        
+        # Generate forecast
+        future_X = future_drivers.reshape(-1, 1)
+        forecast = model.predict(future_X)
+    else:
+        forecast = np.array([np.mean(actuals)] * periods)
+    
+    # Calculate accuracy
+    mape = calculate_mape(actuals, fitted_values)
+    
+    return forecast, mape
+
 def preserve_session_state():
     """Preserve critical session state values to prevent loss during navigation"""
     # List of critical keys that should never be lost
@@ -319,7 +384,7 @@ def main():
         with col1:
             forecast_periods = st.slider("Forecast Periods", 1, 12, 6)
         with col2:
-            method = st.selectbox("Method", ["Simple Trend", "Seasonal Naive", "Ensemble"])
+            method = st.selectbox("Method", ["Simple Trend", "Seasonal Naive", "Ensemble", "Driver-Enhanced Regression", "Simple Exponential Smoothing"])
         
         if st.button("🚀 Generate Forecast"):
             with st.spinner("Generating forecast..."):
@@ -332,6 +397,11 @@ def main():
                     forecast, mape = generate_seasonal_naive_forecast(actuals, forecast_periods)
                 elif method == "Ensemble":
                     forecast, mape = generate_ensemble_forecast(actuals, forecast_periods)
+                elif method == "Simple Exponential Smoothing":
+                    forecast, mape = generate_simple_exponential_smoothing(actuals, forecast_periods)
+                elif method == "Driver-Enhanced Regression":
+                    driver_forecast = data['Driver_Forecast'].values
+                    forecast, mape = generate_driver_enhanced_forecast(actuals, driver_forecast, forecast_periods)
                 else:
                     # Fallback to simple forecast (no MAPE calculation for legacy method)
                     forecast = simple_forecast(data, forecast_periods)
