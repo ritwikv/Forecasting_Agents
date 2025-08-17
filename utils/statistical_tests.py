@@ -3,7 +3,7 @@ Statistical tests for forecasting significance and validation
 """
 import numpy as np
 import pandas as pd
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Tuple, Optional, Any
 from scipy import stats
 from scipy.stats import pearsonr, spearmanr, normaltest, jarque_bera
 import logging
@@ -95,7 +95,8 @@ class StatisticalTests:
                 'f_p_value': float(f_p_value),
                 'significance_level': self.significance_level,
                 'sample_size': int(n),
-                'test_type': 'correlation_and_regression'
+                'test_type': 'correlation_and_regression',
+                'test_method': 'Pearson correlation and F-test for regression significance'
             }
             
             # Add interpretation
@@ -386,4 +387,3 @@ class StatisticalTests:
                 'reason': f'Error in seasonality test: {str(e)}',
                 'test_type': 'error'
             }
-
